@@ -6,8 +6,8 @@ on:
       - nearform
 
 jobs:
-  deploy-cti:
-    name: Deploy to CTI
+  deploy-nfcs:
+    name: Deploy to NFCS
     runs-on: ubuntu-latest
 
     steps:
@@ -22,8 +22,8 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
-        aws-access-key-id: ${{ secrets.CTI_DEV_KEY }}
-        aws-secret-access-key: ${{ secrets.CTI_DEV_SECRET }}
+        aws-access-key-id: ${{ secrets.NFCS_DEV_KEY }}
+        aws-secret-access-key: ${{ secrets.NFCS_DEV_SECRET }}
         aws-region: eu-west-1
 
     - name: Login to Amazon ECR
@@ -34,7 +34,7 @@ jobs:
       id: build-push-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: fight-together/push
+        ECR_REPOSITORY: nfcs/push
         IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -45,7 +45,7 @@ jobs:
 
     - name: Pull PUSH service current task definition
       run: |
-        aws ecs describe-task-definition --task-definition dev-fight-together-push --query taskDefinition > push-task-definition.json
+        aws ecs describe-task-definition --task-definition dev-nfcs-push --query taskDefinition > push-task-definition.json
 
     - name: Update PUSH container version in task definition
       id: push-task-def
@@ -59,6 +59,6 @@ jobs:
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
         task-definition: ${{ steps.push-task-def.outputs.task-definition }}
-        service: dev-fight-together-push
-        cluster: dev-fight-together
+        service: dev-nfcs-push
+        cluster: dev-nfcs
         wait-for-service-stability: true
