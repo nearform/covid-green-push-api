@@ -404,3 +404,60 @@ jobs:
         service: prod-dela-push
         cluster: prod-dela
         wait-for-service-stability: true
+
+  deploy-newjers:
+    name: Deploy to NJ
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+
+    - name: Setup Node
+      uses: actions/setup-node@v1
+      with:
+        node-version: '12.13.1'
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.NJ_PROD_KEY }}
+        aws-secret-access-key: ${{ secrets.NJ_PROD_SECRET }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push PUSH image to Amazon ECR
+      id: build-push-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: newjers/push
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+    - name: Pull PUSH service current task definition
+      run: |
+        aws ecs describe-task-definition --task-definition prod-newjers-push --query taskDefinition > push-task-definition.json
+
+    - name: Update PUSH container version in task definition
+      id: push-task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: push-task-definition.json
+        container-name: push
+        image: ${{ steps.build-push-image.outputs.image }}
+
+    - name: Deploy PUSH service
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.push-task-def.outputs.task-definition }}
+        service: prod-newjers-push
+        cluster: prod-newjers
+        wait-for-service-stability: true
